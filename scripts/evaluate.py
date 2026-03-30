@@ -10,7 +10,7 @@ from src.env_utils import create_ice_hockey_env
 
 MODEL = "ppo_ice_hockey_final"
 
-def test_model():
+def evaluate_model():
     path_to_model = os.path.join("models", MODEL)
 
     # Environnement de test 
@@ -45,4 +45,4 @@ def test_model():
         env.close()
 
 if __name__ == "__main__":
-    test_model()
+    evaluate_model()
