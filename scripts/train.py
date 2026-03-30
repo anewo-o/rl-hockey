@@ -1,5 +1,6 @@
 import os
 import sys
+import yaml
 import ale_py
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -8,33 +9,44 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
 from src.env_utils import create_ice_hockey_env
 
-TOTAL_TIMESTEPS = 200_000
+def load_config(config_path):
+    """Charge le fichier YAML"""
+    with open(config_path, 'r') as file:
+        return yaml.safe_load(file)
 
 def train():
 
     models_dir = os.path.join("models")
     logs_dir = os.path.join("logs")
+    config_path = os.path.join("configs", "ppo_atari.yml")
     
     # Créer les dossiers s'ils n'existent pas
     os.makedirs(models_dir, exist_ok=True)
     os.makedirs(logs_dir, exist_ok=True)
 
+    # Chargement des hyperparamètres
+    print(f"Chargement de la configuration depuis {config_path}...")
+    config = load_config(config_path)
+    env_cfg = config["environment"]
+    ppo_cfg = config["ppo"]
+    train_cfg = config["training"]
+
     #model_name = "ppo_ice_hockey_v1"
 
     print("Initialisation des environnements d'entraînement...")
-    train_env = create_ice_hockey_env(n_envs=4, render_mode=None, seed=0)
+    train_env = create_ice_hockey_env(n_envs=env_cfg["n_envs"], render_mode=None, seed=0)
 
     # Environnement pour tester le modèle et déterminer le meilleur à sauvegarder
     print("Initialisation de l'environnement d'évaluation...")
     eval_env = create_ice_hockey_env(n_envs=1, render_mode=None, seed=42)
 
-    # Callback pour gérer l'évaluation périodique du modèle
+    # Config du callback pour gérer l'évaluation périodique du modèle
     # gère automatiquement le passage du modèle entre train_env et eval_env
     eval_callback = EvalCallback(
         eval_env,
         best_model_save_path=models_dir,
         log_path=logs_dir,
-        eval_freq=25000, # évaluation toutes les X étapes par environnement (donc X*4 étapes globales car on a 4 envs)
+        eval_freq=max(1, train_cfg["eval_freq"] // env_cfg["n_envs"]), # Ajustement par rapport au nb d'env
         n_eval_episodes=5, # nombre de partie jouer pour connaitre plus précisement la performance
         deterministic=True,
         render=False
@@ -42,17 +54,17 @@ def train():
 
     print("Création du modèle PPO...")
     model = PPO(
-        "CnnPolicy", # CNN car image en entrée
-        train_env, 
+        env=train_env, 
         verbose=1, 
         device="auto",
-        tensorboard_log=logs_dir
+        tensorboard_log=logs_dir,
+        **ppo_cfg
     )
 
-    print(f"Début de l'entraînement pour {TOTAL_TIMESTEPS} timesteps...")
+    print(f"Début de l'entraînement pour {train_cfg['total_timesteps']} timesteps...")
     try:
         model.learn(
-            total_timesteps=TOTAL_TIMESTEPS, 
+            total_timesteps=train_cfg["total_timesteps"],
             callback=eval_callback,
             tb_log_name="PPO_IceHockey_run1"
         )
