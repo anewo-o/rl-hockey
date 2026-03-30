@@ -8,8 +8,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from stable_baselines3 import PPO
 from src.env_utils import create_ice_hockey_env
 
+MODEL = "ppo_ice_hockey_final"
+
 def test_model():
-    path_to_model = os.path.join("models", "ppo_ice_hockey_v1")
+    path_to_model = os.path.join("models", MODEL)
 
     # Environnement de test 
     print("Chargement de l'environnement...")
