@@ -1,36 +1,33 @@
-import ale_py
 import os
-import gymnasium as gym
+import sys
+import ale_py
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from stable_baselines3 import PPO
-from stable_baselines3.common.env_util import make_atari_env
-from stable_baselines3.common.vec_env import VecFrameStack
+from src.env_utils import create_ice_hockey_env
 
 def train():
 
-    models_dir = "models"
+    models_dir = os.path.join("..", "models")
     model_name = "ppo_ice_hockey_v1"
     
     # Créer le dossier s'il n'existe pas
     if not os.path.exists(models_dir):
         os.makedirs(models_dir)
 
-    # 4 environnements en parallèle (accélére l'entraînement)
-    env = make_atari_env("ALE/IceHockey-v5", n_envs=4, seed=0)
-
-    # 4 frames emplilées pour que l'agent comprenne le mouvement
-    env = VecFrameStack(env, n_stack=4)
+    env = create_ice_hockey_env(n_envs=4, render_mode=None, seed=0)
 
     # Modèle PPO avec CNN
     model = PPO("CnnPolicy", env, verbose=1, device="auto")
 
-    # 4. Entraînement
     print("Début de l'entraînement...")
     try:
         model.learn(total_timesteps=10000)
     except KeyboardInterrupt:
         print("\nInterruption, sauvegarde du modèle...")
     finally:
-        # 5. Sauvegarde de modèle
+        # Sauvegarde de modèle
         model.save(os.path.join(models_dir, model_name))
         print("Modèle sauvegardé")
         env.close()
