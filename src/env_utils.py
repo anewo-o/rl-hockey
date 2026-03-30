@@ -1,5 +1,5 @@
 from stable_baselines3.common.env_util import make_atari_env
-from stable_baselines3.common.vec_env import VecFrameStack
+from stable_baselines3.common.vec_env import VecFrameStack, VecTransposeImage
 
 def create_ice_hockey_env(n_envs=1, render_mode=None, n_stack=4, seed=42):
     """
@@ -26,5 +26,8 @@ def create_ice_hockey_env(n_envs=1, render_mode=None, n_stack=4, seed=42):
 
     # Empilement de 4 frames pour capturer le mouvement 
     env = VecFrameStack(env, n_stack=n_stack)
+
+    # Transposition pour pytorch (fix d'un warning)
+    env = VecTransposeImage(env)
 
     return env
