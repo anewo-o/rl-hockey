@@ -17,9 +17,11 @@ because of tensor-flow 1.14 support only (else pip install -e from baselines rep
     ```
 - Execute `AutoROM --accept-license --install-dir $CONDA_PREFIX/lib/python3.13/site-packages/ale_py/roms`
 
-## Tensorboard 
-- Visualization toolkit to track differents metrics during the training
-- Command to excecute : 
-tensorboard --logdir logs/
-- And open in browser : 
-localhost:6006
+## TensorBoard
+
+- **Description :** Visualization toolkit to track different metrics during training (loss, accuracy, etc.).
+- **Command to execute :**
+  ```bash
+  tensorboard --logdir logs/
+  ```
+- Open your browser : <http://localhost:6006>
