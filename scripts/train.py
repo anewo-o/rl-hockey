@@ -8,11 +8,35 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import EvalCallback
 from src.env_utils import create_ice_hockey_env
+from typing import Callable
+
+
+def linear_schedule(initial_value: float) -> Callable[[float], float]:
+    """
+    Crée une fonction qui diminue linéairement le taux d'apprentissage.
+    
+    Args:
+        initial_value (float): Le taux d'apprentissage de départ (ex: 0.00025)
+        
+    Returns:
+        Callable: Une fonction appelée par PPO à chaque mise à jour.
+    """
+    def func(progress_remaining: float) -> float:
+        """
+        Calcule le taux actuel.
+        `progress_remaining` commence à 1.0 et descend jusqu'à 0.0
+        """
+        # ex: s'il reste 50% de l'entraînement, le lr sera de 0.5 * initial_value
+        return progress_remaining * initial_value
+    
+    return func
+
 
 def load_config(config_path):
     """Charge le fichier YAML"""
     with open(config_path, 'r') as file:
         return yaml.safe_load(file)
+
 
 def train():
 
@@ -30,6 +54,8 @@ def train():
     env_cfg = config["environment"]
     ppo_cfg = config["ppo"]
     train_cfg = config["training"]
+    print(f"Learning rate de départ de {ppo_cfg['learning_rate']})")
+    ppo_cfg["learning_rate"] = linear_schedule(ppo_cfg["learning_rate"])
 
     #model_name = "ppo_ice_hockey_v1"
 
