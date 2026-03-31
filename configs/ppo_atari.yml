@@ -4,8 +4,10 @@ environment:
   n_stack: 4 # Nombre de frames empilées
 
 training:
+  model_name: "ppo_ice_hockey_run1"
   total_timesteps: 200000  
-  eval_freq: 50000           
+  eval_freq: 50000
+  checkpoint_freq: 10000           
 
 # Paramètres de PPO pour Atari
 ppo:

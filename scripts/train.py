@@ -83,12 +83,12 @@ def train(resume_path=None):
         render=False
     )
 
-    # Sauvegarde un checkpoint tous les 500 000 timesteps (ajusté au nb d'environnements)
-    checkpoint_freq = 500_000 // env_cfg["n_envs"] ###################
+    # Calcul de la fréquence de checkpoint (divisé par le nb d'envs)
+    checkpoint_freq = train_cfg["checkpoint_freq"] // env_cfg["n_envs"] 
     checkpoint_callback = CheckpointCallback(
         save_freq=checkpoint_freq,
         save_path=checkpoints_dir,
-        name_prefix="ppo_icehockey"
+        name_prefix=train_cfg["model_name"]
     )
 
     callbacks = CallbackList([eval_callback, checkpoint_callback])
@@ -122,14 +122,14 @@ def train(resume_path=None):
         model.learn(
             total_timesteps=train_cfg["total_timesteps"],
             callback=callbacks,
-            tb_log_name="PPO_IceHockey_run",
+            tb_log_name=train_cfg["model_name"],
             reset_num_timesteps=reset_timesteps
         )
     except KeyboardInterrupt:
         print("\nInterruption, sauvegarde du modèle...")
     finally:
         # Sauvegarde de modèle
-        final_model_path = os.path.join(models_dir, "ppo_ice_hockey_final")
+        final_model_path = os.path.join(models_dir, f"{train_cfg['model_name']}_final")
         model.save(final_model_path)
         print(f"Modèle final sauvegardé sous {final_model_path}")
         print(f"Le MEILLEUR modèle a été sauvegardé automatiquement sous {models_dir}/best_model.zip")
@@ -139,10 +139,10 @@ def train(resume_path=None):
 
 if __name__ == "__main__":
     # Entrainement de zéro
-    train()
+    #train()
 
     # Reprise d'un entrainement à partir des poids existant
-    #train(resume_path="../models/checkpoints/ppo_icehockey_..._steps.zip")
+    train(resume_path=os.path.join("models", "checkpoints", "ppo_ice_hockey_run1_20000_steps.zip"))
 
 
 # Informations entrainement :

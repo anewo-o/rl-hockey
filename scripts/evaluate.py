@@ -10,8 +10,8 @@ from src.env_utils import create_ice_hockey_env
 
 MODEL = "ppo_ice_hockey_final"
 
-def evaluate_model():
-    path_to_model = os.path.join("models", MODEL)
+def evaluate_model(model_name):
+    path_to_model = os.path.join("models", model_name)
 
     # Environnement de test 
     print("Chargement de l'environnement...")
@@ -45,4 +45,4 @@ def evaluate_model():
         env.close()
 
 if __name__ == "__main__":
-    evaluate_model()
+    evaluate_model(MODEL)
