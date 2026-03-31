@@ -6,7 +6,7 @@ import ale_py
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from stable_baselines3 import PPO
-from stable_baselines3.common.callbacks import EvalCallback
+from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback, CallbackList
 from src.env_utils import create_ice_hockey_env
 from typing import Callable
 
@@ -38,14 +38,19 @@ def load_config(config_path):
         return yaml.safe_load(file)
 
 
-def train():
-
+def train(resume_path=None):
+    """
+    Lance l'entraînement. 
+    Si resume_path pointe vers un fichier .zip, l'entraînement reprendra d'où il s'est arrêté.
+    """
     models_dir = os.path.join("models")
+    checkpoints_dir = os.path.join(models_dir, "checkpoints")
     logs_dir = os.path.join("logs")
     config_path = os.path.join("configs", "ppo_atari.yml")
     
     # Créer les dossiers s'ils n'existent pas
     os.makedirs(models_dir, exist_ok=True)
+    os.makedirs(checkpoints_dir, exist_ok=True)
     os.makedirs(logs_dir, exist_ok=True)
 
     # Chargement des hyperparamètres
@@ -73,26 +78,52 @@ def train():
         best_model_save_path=models_dir,
         log_path=logs_dir,
         eval_freq=max(1, train_cfg["eval_freq"] // env_cfg["n_envs"]), # Ajustement par rapport au nb d'env
-        n_eval_episodes=5, # nombre de partie jouer pour connaitre plus précisement la performance
+        n_eval_episodes=5, # nombre de partie jouées pour connaitre plus précisement la performance
         deterministic=True,
         render=False
     )
 
-    print("Création du modèle PPO...")
-    model = PPO(
-        env=train_env, 
-        verbose=1, 
-        device="auto",
-        tensorboard_log=logs_dir,
-        **ppo_cfg
+    # Sauvegarde un checkpoint tous les 500 000 timesteps (ajusté au nb d'environnements)
+    checkpoint_freq = 500_000 // env_cfg["n_envs"] ###################
+    checkpoint_callback = CheckpointCallback(
+        save_freq=checkpoint_freq,
+        save_path=checkpoints_dir,
+        name_prefix="ppo_icehockey"
     )
+
+    callbacks = CallbackList([eval_callback, checkpoint_callback])
+
+    # Chargement du modèle existant sinon d'un nouveau
+    if resume_path and os.path.exists(resume_path):
+        print(f"---- REPRISE DE L'ENTRAÎNEMENT DEPUIS {resume_path} ----")
+        # On charge les poids, l'état de l'optimiseur, et on y attache le nouvel environnement
+        model = PPO.load(
+            resume_path,
+            env=train_env,
+            verbose=1,
+            device="auto",
+            custom_objects={"learning_rate": ppo_cfg["learning_rate"]}, # Force la reprise du schedule
+            tensorboard_log=logs_dir
+        )
+        reset_timesteps = False # Pour que TensorBoard continue la courbe existante
+    else:
+        print("---- NOUVEAU MODÈLE PPO ----")
+        model = PPO(
+            env=train_env,
+            verbose=1,
+            device="auto",
+            tensorboard_log=logs_dir,
+            **ppo_cfg
+        )
+        reset_timesteps = True
 
     print(f"Début de l'entraînement pour {train_cfg['total_timesteps']} timesteps...")
     try:
         model.learn(
             total_timesteps=train_cfg["total_timesteps"],
-            callback=eval_callback,
-            tb_log_name="PPO_IceHockey_run1"
+            callback=callbacks,
+            tb_log_name="PPO_IceHockey_run",
+            reset_num_timesteps=reset_timesteps
         )
     except KeyboardInterrupt:
         print("\nInterruption, sauvegarde du modèle...")
@@ -107,7 +138,12 @@ def train():
         eval_env.close()
 
 if __name__ == "__main__":
+    # Entrainement de zéro
     train()
+
+    # Reprise d'un entrainement à partir des poids existant
+    #train(resume_path="../models/checkpoints/ppo_icehockey_..._steps.zip")
+
 
 # Informations entrainement :
 #
