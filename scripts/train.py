@@ -2,6 +2,8 @@ import os
 import sys
 import yaml
 import ale_py
+import numpy
+import typing
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
