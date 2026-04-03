@@ -1,5 +1,5 @@
 from stable_baselines3.common.env_util import make_atari_env
-from stable_baselines3.common.vec_env import VecFrameStack, VecTransposeImage
+from stable_baselines3.common.vec_env import VecFrameStack, VecTransposeImage, SubprocVecEnv
 
 def create_ice_hockey_env(n_envs=1, render_mode=None, n_stack=4, seed=42):
     """
@@ -21,6 +21,7 @@ def create_ice_hockey_env(n_envs=1, render_mode=None, n_stack=4, seed=42):
         env_id, 
         n_envs=n_envs, 
         seed=seed, 
+        vec_env_cls=SubprocVecEnv, # Faire tourner les environnements en parallèle.
         env_kwargs={"render_mode": render_mode}
     )
 
