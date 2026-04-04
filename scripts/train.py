@@ -64,8 +64,6 @@ def train(resume_path=None):
     print(f"Learning rate de départ de {ppo_cfg['learning_rate']})")
     ppo_cfg["learning_rate"] = linear_schedule(ppo_cfg["learning_rate"])
 
-    #model_name = "ppo_ice_hockey_v1"
-
     print("Initialisation des environnements d'entraînement...")
     train_env = create_ice_hockey_env(n_envs=env_cfg["n_envs"], render_mode=None, seed=0)
 
