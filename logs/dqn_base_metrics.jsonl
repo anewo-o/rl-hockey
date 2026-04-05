@@ -1,0 +1,4 @@
+{"timesteps": 2000, "exploration_rate": 0.8100950000000005, "mean_ep_reward_100": -14.0, "mean_ep_length_100": 3529.0, "train_loss": null, "learning_rate": null, "n_updates": null, "elapsed_seconds": 6.93}
+{"timesteps": 4000, "exploration_rate": 0.6200950000000003, "mean_ep_reward_100": -11.75, "mean_ep_length_100": 3499.75, "train_loss": null, "learning_rate": null, "n_updates": null, "elapsed_seconds": 14.24}
+{"timesteps": 6000, "exploration_rate": 0.4300950000000002, "mean_ep_reward_100": -12.333333333333334, "mean_ep_length_100": 3478.5, "train_loss": null, "learning_rate": null, "n_updates": null, "elapsed_seconds": 21.57}
+{"timesteps": 8000, "exploration_rate": 0.24009500000000006, "mean_ep_reward_100": -12.222222222222221, "mean_ep_length_100": 3440.8888888888887, "train_loss": null, "learning_rate": null, "n_updates": null, "elapsed_seconds": 30.39}
