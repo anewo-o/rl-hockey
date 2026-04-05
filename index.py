@@ -1,7 +1,7 @@
 import gymnasium as gym
 import shimmy
 import ale_py
-from extract_state import get_state, build_state, normalize_state
+from per.extract_state import get_state, build_state, normalize_state
 
 env = gym.make("ALE/IceHockey-v5", obs_type="ram", render_mode="human")
 obs, info = env.reset()
