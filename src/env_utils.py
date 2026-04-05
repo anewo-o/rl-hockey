@@ -10,10 +10,10 @@ from src.wrappers import IceHockeyShapingWrapper
 def create_ice_hockey_env(n_envs=1, render_mode=None, n_stack=4, seed=42):
     def make_env(rank):
         def _init():
-            # 1. OCAtari : On force obs_mode="ori" pour garantir la sortie des pixels RGB
+            # obs_mode="ori" pour garantir la sortie des pixels RGB
             env = OCAtari("ALE/IceHockey-v5", mode="ram", hud=True, obs_mode="ori", render_mode=render_mode)
             
-            # Patch OCAtari / SB3
+            # Patch compatibilité OCAtari / SB3
             if not hasattr(env.unwrapped, "ale"):
                 env.unwrapped.ale = env.unwrapped._env.unwrapped.ale
             if not hasattr(env.unwrapped, "get_action_meanings"):
@@ -22,7 +22,7 @@ def create_ice_hockey_env(n_envs=1, render_mode=None, n_stack=4, seed=42):
             # Wrapper pour le reward shaping 
             env = IceHockeyShapingWrapper(env)
 
-            # Pour avoir les stats rollout/
+            # Pour avoir les stats rollout/ dans la console
             env = Monitor(env)
             
             # Pour l'image donnée au PPO
@@ -38,7 +38,7 @@ def create_ice_hockey_env(n_envs=1, render_mode=None, n_stack=4, seed=42):
     # Création des fonctions d'initialisation pour chaque processus
     env_fns = [make_env(i) for i in range(n_envs)]
 
-    # Vectorisation
+    # Vectorisation si plusieurs environnements généré
     if n_envs > 1:
         env = SubprocVecEnv(env_fns)
     else:

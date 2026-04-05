@@ -37,9 +37,9 @@ class IceHockeyShapingWrapper(gym.Wrapper):
             # ---------------------------------------------------------
             if self.last_min_dist is not None:
                 if current_min_dist < self.last_min_dist:
-                    shaping_step_reward += 0.002  
+                    shaping_step_reward += 0.01  
                 elif current_min_dist > self.last_min_dist:
-                    shaping_step_reward -= 0.002 
+                    shaping_step_reward -= 0.01 
             self.last_min_dist = current_min_dist
             
             # ---------------------------------------------------------
@@ -58,11 +58,11 @@ class IceHockeyShapingWrapper(gym.Wrapper):
                 if self.last_puck_target_dist is not None:
                     if current_puck_target_dist < self.last_puck_target_dist:
                         # L'agent descend vers le but avec la rondelle
-                        shaping_step_reward += 0.008 
+                        shaping_step_reward += 0.02 
 
                     elif current_puck_target_dist > self.last_puck_target_dist:
                         # L'agent remonte vers son propre camp
-                        shaping_step_reward -= 0.008
+                        shaping_step_reward -= 0.01
                         
                 self.last_puck_target_dist = current_puck_target_dist
             else:

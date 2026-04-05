@@ -8,7 +8,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from stable_baselines3 import PPO
 from src.env_utils import create_ice_hockey_env
 
-MODEL = "ppo_ice_hockey_final"
+# Choix du modèle à tester
+MODEL = "best_model_run3"
+#MODEL = "checkpoints/ppo_ice_hockey_run3_15000000_steps"
 
 def evaluate_model(model_name):
     path_to_model = os.path.join("models", model_name)

@@ -128,7 +128,7 @@ def train(resume_path=None):
     except KeyboardInterrupt:
         print("\nInterruption, sauvegarde du modèle...")
     finally:
-        # Sauvegarde de modèle
+        # Sauvegarde du modèle
         final_model_path = os.path.join(models_dir, f"{train_cfg['model_name']}_final")
         model.save(final_model_path)
         print(f"Modèle final sauvegardé sous {final_model_path}")
