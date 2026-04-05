@@ -87,6 +87,7 @@ models/
 
 # models for SB3
 *.zip
+*.tar
 
 # TensorBoard 
 logs/

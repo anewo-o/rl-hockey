@@ -3,3 +3,4 @@ AutoROM
 gymnasium
 stable-baselines3[extra]
 PyYAML
+ocatari
