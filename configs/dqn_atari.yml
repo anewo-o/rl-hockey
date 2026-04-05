@@ -1,0 +1,22 @@
+environment:
+  env_id: "ALE/IceHockey-v5"
+  n_envs: 1
+  n_stack: 4
+
+training:
+  model_name: "dqn_ice_hockey_run1"
+  total_timesteps: 200000
+  eval_freq: 50000
+  checkpoint_freq: 10000
+
+dqn:
+  policy: "CnnPolicy"
+  learning_rate: 0.0001
+  buffer_size: 30000 # Taille du replay buffer
+  learning_starts: 1000 # Nombre de transitions à collecter avant de commencer l'entraînement
+  batch_size: 32 # Taille du batch pour la descente de gradient
+  gamma: 0.99 # Facteur de discount
+  train_freq: 4
+  target_update_interval: 1000 # Fréquence de mise à jour du target network
+  exploration_fraction: 0.1
+  exploration_final_eps: 0.01
