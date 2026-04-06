@@ -2,15 +2,27 @@
 A Reinforcement Learning (RL) approach...
 
 ## Requirements
-- `conda install` channels don't have ale-py, must use `pip install`
-- `requirements.txt` is not sufficient for Ubuntu (`apt install sld2` etc... wheel hell)
-- or use `conda create -n ift702-projet python=3.10` for a more stable Python version
-- then for baselines :
-    ```bash
-    pip install tensor-flow 
-    # might break (1.14 last version supported)
-    pip uninstall -y setuptools
-    pip install setuptools==80.10.2
-    pip install -e . --no-build-isolation
-    ``` 
-- and it did, so you have to use python 3.7 but ale needs 3.9+...
+- Needs a stable version of Python (3.13) : `conda create -n ift702-projet python=3.13` 
+- Incompatibility between OpenAI baselines (Python 3.7) and the Gymnasium (Python 3.9+)
+because of tensor-flow 1.14 support only (else pip install -e from baselines repo)
+
+## Dockerize
+- Freeze minimal environment with `conda env export --from-history | grep -v "^prefix:" > env.yml`
+- Manually add pip package `AutoROM` to dependencies :
+    ```yml
+    dependencies:
+        - pip
+        - pip:
+            - AutoROM
+            - PyYAML
+    ```
+- Execute `AutoROM --accept-license --install-dir $CONDA_PREFIX/lib/python3.13/site-packages/ale_py/roms`
+
+## TensorBoard
+
+- **Description :** Visualization toolkit to track different metrics during training (loss, accuracy, etc.).
+- **Command to execute :**
+  ```bash
+  tensorboard --logdir logs/
+  ```
+- Open your browser : <http://localhost:6006>
