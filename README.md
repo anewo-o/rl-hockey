@@ -2,7 +2,7 @@
 A Reinforcement Learning (RL) approach...
 
 ## Requirements
-- Needs a stable version of Python (3.13) : `conda create -n ift702-projet python=3.13` 
+- Needs a stable version of Python (3.13) : `conda create -n ift702-projet python=3.12` 
 - Incompatibility between OpenAI baselines (Python 3.7) and the Gymnasium (Python 3.9+)
 because of tensor-flow 1.14 support only (else pip install -e from baselines repo)
 
@@ -14,6 +14,7 @@ because of tensor-flow 1.14 support only (else pip install -e from baselines rep
         - pip
         - pip:
             - AutoROM
+            - ocatari
             - PyYAML
     ```
 - Execute `AutoROM --accept-license --install-dir $CONDA_PREFIX/lib/python3.13/site-packages/ale_py/roms`

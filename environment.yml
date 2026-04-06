@@ -1,0 +1,16 @@
+name: ift702-projet
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.13
+  - ale-py
+  - gymnasium
+  - conda-lock
+  - stable-baselines3
+  - tensorboard
+  - pip
+  - pip:
+      - AutoROM
+      - ocatari
+      - PyYAML
