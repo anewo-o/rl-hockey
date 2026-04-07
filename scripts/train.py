@@ -8,7 +8,7 @@ import typing
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from stable_baselines3 import PPO
-from src.ppo_addendum import PPO_bis
+from src.ppo_addendum import PartialPPO
 
 from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback, CallbackList
 from src.env_utils import create_ice_hockey_env
@@ -110,11 +110,12 @@ def train(resume_path=None):
         reset_timesteps = False # Pour que TensorBoard continue la courbe existante
     else:
         print("---- NOUVEAU MODÈLE PPO ----")
-        model = PPO_bis(
+        model = PartialPPO(
             env=train_env,
             verbose=1,
             device="auto",
             tensorboard_log=logs_dir,
+            partial_horizon = int(ppo_cfg["n_steps"]/2),
             **ppo_cfg
         )
         reset_timesteps = True

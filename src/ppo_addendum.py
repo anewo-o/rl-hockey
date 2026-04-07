@@ -1,5 +1,6 @@
+from __future__ import annotations
 import warnings
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar, TypeVar, Generator, Optional
 
 import numpy as np
 import torch as th
@@ -9,70 +10,132 @@ from torch.nn import functional as F
 from stable_baselines3 import PPO
 from stable_baselines3.common.buffers import RolloutBuffer
 from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticPolicy, BasePolicy, MultiInputActorCriticPolicy
-from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
+from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule, RolloutBufferSamples
 from stable_baselines3.common.utils import FloatSchedule, explained_variance
 
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
 
 
-class PPO_bis(PPO):
+class PartialRolloutBuffer(RolloutBuffer):
     """
-    We add to SB3's PPO by...
+    RolloutBuffer that computes standard SB3 truncated GAE, 
+    then masks out the high-bias tail of unfinished trajectory segments.
 
-    Here is the original documentation from the parent PPO :
+    Paper rule implemented:
+    - if a sampled segment ends because the episode ended inside the buffer:
+        use all transitions from that segment
+    - if a sampled segment reaches the end of the rollout buffer without termination:
+        use only the first `partial_horizon` transitions from that segment
+    """
 
-    Proximal Policy Optimization algorithm (PPO) (clip version)
+    def __init__(
+        self,
+        buffer_size: int,
+        observation_space: spaces.Space,
+        action_space: spaces.Space,
+        device: th.device | str = "auto",
+        gae_lambda: float = 1.0,
+        gamma: float = 0.99,
+        n_envs: int = 1,
+        partial_horizon: Optional[int] = None,
+    ) -> None:
+        super().__init__(
+            buffer_size=buffer_size,
+            observation_space=observation_space,
+            action_space=action_space,
+            device=device,
+            gae_lambda=gae_lambda,
+            gamma=gamma,
+            n_envs=n_envs,
+        )
+        self.partial_horizon = partial_horizon if partial_horizon is not None else buffer_size
+        if not (1 <= self.partial_horizon <= buffer_size):
+            raise ValueError(
+                f"partial_horizon must be in [1, buffer_size], got {self.partial_horizon}"
+            )
+        self.valid_mask: np.ndarray
 
-    Paper: https://arxiv.org/abs/1707.06347
-    Code: This implementation borrows code from OpenAI Spinning Up (https://github.com/openai/spinningup/)
-    https://github.com/ikostrikov/pytorch-a2c-ppo-acktr-gail and
-    Stable Baselines (PPO2 from https://github.com/hill-a/stable-baselines)
+    def reset(self) -> None:
+        super().reset()
+        self.valid_mask = np.zeros((self.buffer_size, self.n_envs), dtype=bool)
 
-    Introduction to PPO: https://spinningup.openai.com/en/latest/algorithms/ppo.html
+    def compute_returns_and_advantage(self, last_values: th.Tensor, dones: np.ndarray) -> None:
+        # Standard SB3 truncated GAE.
+        super().compute_returns_and_advantage(last_values, dones)
 
-    :param policy: The policy model to use (MlpPolicy, CnnPolicy, ...)
-    :param env: The environment to learn from (if registered in Gym, can be str)
-    :param learning_rate: The learning rate, it can be a function
-        of the current progress remaining (from 1 to 0)
-    :param n_steps: The number of steps to run for each environment per update
-        (i.e. rollout buffer size is n_steps * n_envs where n_envs is number of environment copies running in parallel)
-        NOTE: n_steps * n_envs must be greater than 1 (because of the advantage normalization)
-        See https://github.com/pytorch/pytorch/issues/29372
-    :param batch_size: Minibatch size
-    :param n_epochs: Number of epoch when optimizing the surrogate loss
-    :param gamma: Discount factor
-    :param gae_lambda: Factor for trade-off of bias vs variance for Generalized Advantage Estimator
-    :param clip_range: Clipping parameter, it can be a function of the current progress
-        remaining (from 1 to 0).
-    :param clip_range_vf: Clipping parameter for the value function,
-        it can be a function of the current progress remaining (from 1 to 0).
-        This is a parameter specific to the OpenAI implementation. If None is passed (default),
-        no clipping will be done on the value function.
-        IMPORTANT: this clipping depends on the reward scaling.
-    :param normalize_advantage: Whether to normalize or not the advantage
-    :param ent_coef: Entropy coefficient for the loss calculation
-    :param vf_coef: Value function coefficient for the loss calculation
-    :param max_grad_norm: The maximum value for the gradient clipping
-    :param use_sde: Whether to use generalized State Dependent Exploration (gSDE)
-        instead of action noise exploration (default: False)
-    :param sde_sample_freq: Sample a new noise matrix every n steps when using gSDE
-        Default: -1 (only sample at the beginning of the rollout)
-    :param rollout_buffer_class: Rollout buffer class to use. If ``None``, it will be automatically selected.
-    :param rollout_buffer_kwargs: Keyword arguments to pass to the rollout buffer on creation
-    :param target_kl: Limit the KL divergence between updates,
-        because the clipping is not enough to prevent large update
-        see issue #213 (cf https://github.com/hill-a/stable-baselines/issues/213)
-        By default, there is no limit on the kl div.
-    :param stats_window_size: Window size for the rollout logging, specifying the number of episodes to average
-        the reported success rate, mean episode length, and mean reward over
-    :param tensorboard_log: the log location for tensorboard (if None, no logging)
-    :param policy_kwargs: additional arguments to be passed to the policy on creation. See :ref:`ppo_policies`
-    :param verbose: Verbosity level: 0 for no output, 1 for info messages (such as device or wrappers used), 2 for
-        debug messages
-    :param seed: Seed for the pseudo random generators
-    :param device: Device (cpu, cuda, ...) on which the code should be run.
-        Setting it to auto, the code will be run on the GPU if possible.
-    :param _init_setup_model: Whether or not to build the network at the creation of the instance
+        # Build a mask over valid training samples.
+        # A "segment" is a contiguous chunk within one env between episode starts.
+        # If the segment ends inside the buffer, it is complete => keep all.
+        # If it reaches the buffer end, it is incomplete => keep only prefix of length partial_horizon.
+        self.valid_mask[:] = False
+
+        for env_idx in range(self.n_envs):
+            starts = [0]
+            # episode_starts[t] == 1 means obs at t is the first obs of a new episode
+            for t in range(1, self.buffer_size):
+                if self.episode_starts[t, env_idx] > 0.5:
+                    starts.append(t)
+
+            for seg_i, seg_start in enumerate(starts):
+                seg_end = starts[seg_i + 1] if seg_i + 1 < len(starts) else self.buffer_size
+                segment_is_complete = seg_end < self.buffer_size
+
+                ####################################################################################
+                ### Papers rules HERE ! ############################################################
+                ####################################################################################
+                if segment_is_complete:
+                    self.valid_mask[seg_start:seg_end, env_idx] = True
+                else:
+                    keep_end = min(seg_start + self.partial_horizon, seg_end)
+                    self.valid_mask[seg_start:keep_end, env_idx] = True
+
+    def get(self, batch_size: int | None = None) -> Generator[RolloutBufferSamples, None, None]:
+        assert self.full, ""
+
+        if not self.generator_ready:
+            tensor_names = [
+                "observations",
+                "actions",
+                "values",
+                "log_probs",
+                "advantages",
+                "returns",
+                "valid_mask",
+            ]
+            for name in tensor_names:
+                self.__dict__[name] = self.swap_and_flatten(self.__dict__[name])
+            self.generator_ready = True
+
+        valid_indices = np.flatnonzero(self.valid_mask)
+        if len(valid_indices) == 0:
+            raise RuntimeError(
+                "PartialGAERolloutBuffer produced zero valid samples. "
+                "Increase partial_horizon or n_steps."
+            )
+
+        indices = np.random.permutation(valid_indices)
+
+        if batch_size is None:
+            batch_size = len(indices)
+        else:
+            batch_size = min(batch_size, len(indices))
+
+        start_idx = 0
+        while start_idx < len(indices):
+            yield self._get_samples(indices[start_idx : start_idx + batch_size])
+            start_idx += batch_size
+
+
+class PartialPPO(PPO):
+    """
+    PPO + partial GAE masking.
+
+    Reuses SB3 normal:
+    - learn()
+    - collect_rollouts()
+    - train()
+
+    Customization is in the rollout buffer class.
     """
 
     policy_aliases: ClassVar[dict[str, type[BasePolicy]]] = {
@@ -81,9 +144,82 @@ class PPO_bis(PPO):
         "MultiInputPolicy": MultiInputActorCriticPolicy,
     }
 
+    def __init__(
+        self,
+        policy,
+        env: GymEnv | str,
+        *,
+        partial_horizon: Optional[int] = None,
+        learning_rate: float | Schedule = 3e-4,
+        n_steps: int = 2048,
+        batch_size: int = 64,
+        n_epochs: int = 10,
+        gamma: float = 0.99,
+        gae_lambda: float = 0.95,
+        clip_range: float | Schedule = 0.2,
+        clip_range_vf: Optional[float | Schedule] = None,
+        normalize_advantage: bool = True,
+        ent_coef: float = 0.0,
+        vf_coef: float = 0.5,
+        max_grad_norm: float = 0.5,
+        use_sde: bool = False,
+        sde_sample_freq: int = -1,
+        rollout_buffer_class=None,
+        rollout_buffer_kwargs=None,
+        target_kl: Optional[float] = None,
+        stats_window_size: int = 100,
+        tensorboard_log: Optional[str] = None,
+        policy_kwargs=None,
+        verbose: int = 0,
+        seed: Optional[int] = None,
+        device: str | th.device = "auto",
+        _init_setup_model: bool = True,
+    ) -> None:
+        if rollout_buffer_class is not None:
+            raise ValueError(
+                "PartialPPO manages rollout_buffer_class itself. "
+                "Pass extra args through rollout_buffer_kwargs if needed."
+            )
+
+        rollout_buffer_kwargs = dict(rollout_buffer_kwargs or {})
+        rollout_buffer_kwargs["partial_horizon"] = (
+            n_steps if partial_horizon is None else partial_horizon
+        )
+
+        self.partial_horizon = rollout_buffer_kwargs["partial_horizon"]
+
+        super().__init__(
+            policy=policy,
+            env=env,
+            learning_rate=learning_rate,
+            n_steps=n_steps,
+            batch_size=batch_size,
+            n_epochs=n_epochs,
+            gamma=gamma,
+            gae_lambda=gae_lambda,
+            clip_range=clip_range,
+            clip_range_vf=clip_range_vf,
+            normalize_advantage=normalize_advantage,
+            ent_coef=ent_coef,
+            vf_coef=vf_coef,
+            max_grad_norm=max_grad_norm,
+            use_sde=use_sde,
+            sde_sample_freq=sde_sample_freq,
+            rollout_buffer_class=PartialRolloutBuffer,
+            rollout_buffer_kwargs=rollout_buffer_kwargs,
+            target_kl=target_kl,
+            stats_window_size=stats_window_size,
+            tensorboard_log=tensorboard_log,
+            policy_kwargs=policy_kwargs,
+            verbose=verbose,
+            seed=seed,
+            device=device,
+            _init_setup_model=_init_setup_model,
+        )
+
     def train(self) -> None:
         """
-        Update policy using the currently gathered rollout buffer.
+        From original SB3, only here for tracking.
         """
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
