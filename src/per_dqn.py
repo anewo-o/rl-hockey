@@ -57,7 +57,7 @@ class PERDQN(SB3DQN):
             # Mise à jour des priorités dans le buffer selon les TD errors
             self.replay_buffer.update_priorities(
                 indices,
-                td_errors.detach().cpu().numpy()
+                td_errors.detach().cpu().numpy().flatten()
             )
 
         self._n_updates += gradient_steps
