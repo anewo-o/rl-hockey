@@ -12,11 +12,11 @@ training:
 dqn:
   policy: "CnnPolicy"
   learning_rate: 0.0001
-  buffer_size: 30000 # Taille du replay buffer
-  learning_starts: 1000 # Nombre de transitions à collecter avant de commencer l'entraînement
-  batch_size: 32 # Taille du batch pour la descente de gradient
-  gamma: 0.99 # Facteur de discount
+  buffer_size: 30000 
+  learning_starts: 1000 
+  batch_size: 32 
+  gamma: 0.99 
   train_freq: 4
-  target_update_interval: 1000 # Fréquence de mise à jour du target network
+  target_update_interval: 1000
   exploration_fraction: 0.1
   exploration_final_eps: 0.01
