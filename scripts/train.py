@@ -1,16 +1,18 @@
 import os
 import sys
 import yaml
-import ale_py
-import numpy
-import typing
+import argparse
+from typing import Callable, Any, Dict
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, DQN
 from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback, CallbackList
+
 from src.env_utils import create_ice_hockey_env
-from typing import Callable
+from src.prioritized_replay_buffer import PrioritizedReplayBuffer
+from src.per_dqn import PERDQN
+from src.ppo_addendum import PartialPPO
 
 
 def linear_schedule(initial_value: float) -> Callable[[float], float]:
@@ -34,121 +36,125 @@ def linear_schedule(initial_value: float) -> Callable[[float], float]:
     return func
 
 
-def load_config(config_path):
-    """Charge le fichier YAML"""
+def load_config(algo: str) -> Dict[str, Any]:
+    """Charge le bon fichier de config selon l'algo."""
+    config_name = "ppo_atari.yml" if "ppo" in algo.lower() else "dqn_atari.yml"
+    config_path = os.path.join("configs", config_name)
     with open(config_path, 'r') as file:
         return yaml.safe_load(file)
 
 
-def train(resume_path=None):
-    """
-    Lance l'entraînement. 
-    Si resume_path pointe vers un fichier .zip, l'entraînement reprendra d'où il s'est arrêté.
-    """
-    models_dir = os.path.join("models")
+def get_model_class(algo_name: str):
+    """Mappe le nom de l'algo à sa classe et ses paramètres spécifiques."""
+    mapping = {
+        "ppo": (PPO, {}),
+        "partial-ppo": (PartialPPO, {}), # Le partial_horizon sera extrait de la config
+        "dqn": (DQN, {}),
+        "per-dqn": (PERDQN, {
+            "replay_buffer_class": PrioritizedReplayBuffer,
+            "replay_buffer_kwargs": dict(alpha=0.6, beta=0.4)
+        })
+    }
+    if algo_name not in mapping:
+        raise ValueError(f"Algo {algo_name} non supporté. Choix : {list(mapping.keys())}")
+    return mapping[algo_name]
+
+
+def train(algo_name: str, resume_path: str = None):
+    # setup des dossiers
+    models_dir, logs_dir = "models", "logs"
     checkpoints_dir = os.path.join(models_dir, "checkpoints")
-    logs_dir = os.path.join("logs")
-    config_path = os.path.join("configs", "ppo_atari.yml")
-    
-    # Créer les dossiers s'ils n'existent pas
-    os.makedirs(models_dir, exist_ok=True)
-    os.makedirs(checkpoints_dir, exist_ok=True)
-    os.makedirs(logs_dir, exist_ok=True)
+    for d in [models_dir, checkpoints_dir, logs_dir]:
+        os.makedirs(d, exist_ok=True)
 
-    # Chargement des hyperparamètres
-    print(f"Chargement de la configuration depuis {config_path}...")
-    config = load_config(config_path)
+    # Chargement config et classes
+    config = load_config(algo_name)
     env_cfg = config["environment"]
-    ppo_cfg = config["ppo"]
     train_cfg = config["training"]
-    print(f"Learning rate de départ de {ppo_cfg['learning_rate']})")
-    ppo_cfg["learning_rate"] = linear_schedule(ppo_cfg["learning_rate"])
+    algo_cfg = config.get("ppo") if "ppo" in algo_name else config.get("dqn")
+    
+    model_class, extra_kwargs = get_model_class(algo_name)
+    model_name = train_cfg["model_name"]
 
-    print("Initialisation des environnements d'entraînement...")
-    train_env = create_ice_hockey_env(n_envs=env_cfg["n_envs"], render_mode=None, seed=0)
+    # Gestion spécifique des hyperparamètres
+    if "ppo" in algo_name:
+        initial_lr = algo_cfg["learning_rate"]
+        algo_cfg["learning_rate"] = linear_schedule(initial_lr)
+        if algo_name == "partial-ppo":
+            extra_kwargs["partial_horizon"] = int(algo_cfg["n_steps"] / 2)
 
-    # Environnement pour tester le modèle et déterminer le meilleur à sauvegarder
-    print("Initialisation de l'environnement d'évaluation...")
-    eval_env = create_ice_hockey_env(n_envs=1, render_mode=None, seed=42)
+    # Environnements
+    print(f"--- Initialisation des environnements pour {algo_name} ---")
+    train_env = create_ice_hockey_env(n_envs=env_cfg["n_envs"], seed=0)
+    eval_env = create_ice_hockey_env(n_envs=1, seed=42)
 
-    # Config du callback pour gérer l'évaluation périodique du modèle
-    # gère automatiquement le passage du modèle entre train_env et eval_env
+    # Callbacks
     eval_callback = EvalCallback(
         eval_env,
         best_model_save_path=models_dir,
         log_path=logs_dir,
-        eval_freq=max(1, train_cfg["eval_freq"] // env_cfg["n_envs"]), # Ajustement par rapport au nb d'env
-        n_eval_episodes=5, # nombre de partie jouées pour connaitre plus précisement la performance
-        deterministic=True,
-        render=False
+        eval_freq=max(1, train_cfg["eval_freq"] // env_cfg["n_envs"]),
+        n_eval_episodes=5,
+        deterministic=True
     )
-
-    # Calcul de la fréquence de checkpoint (divisé par le nb d'envs)
-    checkpoint_freq = train_cfg["checkpoint_freq"] // env_cfg["n_envs"] 
     checkpoint_callback = CheckpointCallback(
-        save_freq=checkpoint_freq,
+        save_freq=train_cfg["checkpoint_freq"] // env_cfg["n_envs"],
         save_path=checkpoints_dir,
-        name_prefix=train_cfg["model_name"]
+        name_prefix=model_name
     )
-
     callbacks = CallbackList([eval_callback, checkpoint_callback])
 
-    # Chargement du modèle existant sinon d'un nouveau
+    # Initialisation ou Reprise
     if resume_path and os.path.exists(resume_path):
-        print(f"---- REPRISE DE L'ENTRAÎNEMENT DEPUIS {resume_path} ----")
-        # On charge les poids, l'état de l'optimiseur, et on y attache le nouvel environnement
-        model = PPO.load(
-            resume_path,
-            env=train_env,
-            verbose=1,
-            device="auto",
-            custom_objects={"learning_rate": ppo_cfg["learning_rate"]}, # Force la reprise du schedule
-            tensorboard_log=logs_dir
-        )
-        reset_timesteps = False # Pour que TensorBoard continue la courbe existante
+        print(f"---- REPRISE DE L'ENTRAINEMENT : {resume_path} ----")
+        load_kwargs = {"env": train_env, "tensorboard_log": logs_dir}
+        if "ppo" in algo_name:
+            load_kwargs["custom_objects"] = {"learning_rate": algo_cfg["learning_rate"]}
+        
+        model = model_class.load(resume_path, **load_kwargs, **extra_kwargs)
+        reset_timesteps = False
     else:
-        print("---- NOUVEAU MODÈLE PPO ----")
-        model = PPO(
+        print(f"---- NOUVEAU MODELE {algo_name.upper()} ----")
+        model = model_class(
             env=train_env,
+            tensorboard_log=logs_dir,
             verbose=1,
             device="auto",
-            tensorboard_log=logs_dir,
-            **ppo_cfg
+            **algo_cfg,
+            **extra_kwargs
         )
         reset_timesteps = True
 
-    print(f"Début de l'entraînement pour {train_cfg['total_timesteps']} timesteps...")
+    # Apprentissage
     try:
         model.learn(
             total_timesteps=train_cfg["total_timesteps"],
             callback=callbacks,
-            tb_log_name=train_cfg["model_name"],
+            tb_log_name=model_name,
             reset_num_timesteps=reset_timesteps
         )
     except KeyboardInterrupt:
-        print("\nInterruption, sauvegarde du modèle...")
+        print("\nInterruption utilisateur...")
     finally:
-        # Sauvegarde du modèle
-        final_model_path = os.path.join(models_dir, f"{train_cfg['model_name']}_final")
-        model.save(final_model_path)
-        print(f"Modèle final sauvegardé sous {final_model_path}")
-        print(f"Le MEILLEUR modèle a été sauvegardé automatiquement sous {models_dir}/best_model.zip")
-        
+        final_path = os.path.join(models_dir, f"{model_name}_final")
+        model.save(final_path)
+        print(f"Modèle final sauvegardé : {final_path}")
         train_env.close()
         eval_env.close()
 
 if __name__ == "__main__":
-    # Entrainement de zéro
-    #train()
+    parser = argparse.ArgumentParser(description="Train RL agent on Ice Hockey")
+    parser.add_argument("--algo", type=str, default="ppo", help="ppo, partial-ppo, dqn, per-dqn")
+    parser.add_argument("--resume", type=str, default=None, help="Chemin vers un .zip")
+    args = parser.parse_args()
 
-    # Reprise d'un entrainement à partir des poids existant
-    train(resume_path=os.path.join("models", "checkpoints", "ppo_ice_hockey_run1_20000_steps.zip"))
+    train(algo_name=args.algo, resume_path=args.resume)
 
 
 # Informations entrainement :
 #
 # rollout/
-#   ep_lean_mean : longueur moyenne d'un partie (nb de frames)
+#   ep_lean_mean : longueur moyenne d'une partie (nb de frames)
 #   ep_rew_mean : récompense moyenne obtenu par match
 #
 # time/
