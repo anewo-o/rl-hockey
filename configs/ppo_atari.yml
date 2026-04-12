@@ -1,24 +1,23 @@
 environment:
   env_id: "ALE/IceHockey-v5"
   n_envs: 8             
-  n_stack: 4 # Nombre de frames empilées
+  n_stack: 4
 
 training:
-  model_name: "ppo_ice_hockey_run1"
+  model_name: "ppo_test"
   total_timesteps: 200000  
   eval_freq: 50000
   checkpoint_freq: 10000           
 
-# Paramètres de PPO pour Atari
 ppo:
-  policy: "CnnPolicy"        # CNN car image en entrée
+  policy: "CnnPolicy"       
   learning_rate: 0.00025     
-  n_steps: 128               # Nombre d'étapes à collecter par env avant mise à jour
-  batch_size: 256            # Taille du batch pour la descente de gradient
-  n_epochs: 4                # Nombre de passages sur les données collectées
-  gamma: 0.99                # Facteur de discount (vision à long terme)
-  gae_lambda: 0.95           # Paramètre de lissage pour l'avantage
-  clip_range: 0.1            # Empêche PPO de trop modifier sa politique d'un coup (défaut: 0.2)
-  ent_coef: 0.01             # Coefficient d'entropie : force l'agent à explorer 
-  vf_coef: 0.5               # Coefficient de la loss de valeur
-  max_grad_norm: 0.5         # Clipping des gradients pour éviter l'explosion
+  n_steps: 128               
+  batch_size: 256            
+  n_epochs: 4               
+  gamma: 0.99               
+  gae_lambda: 0.95          
+  clip_range: 0.1      
+  ent_coef: 0.01        
+  vf_coef: 0.5          
+  max_grad_norm: 0.5   

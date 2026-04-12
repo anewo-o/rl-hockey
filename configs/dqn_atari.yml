@@ -4,8 +4,7 @@ environment:
   n_stack: 4
 
 training:
-  model_name: "dqn_ice_hockey_run1"
-  per_model_name: "dqn_per_ice_hockey_run1"
+  model_name: "dqn_test"
   total_timesteps: 200000
   eval_freq: 50000
   checkpoint_freq: 10000
