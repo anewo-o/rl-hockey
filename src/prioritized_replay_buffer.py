@@ -10,8 +10,8 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         super().__init__(*args, **kwargs)
 
         # alpha : contrôle à quel point on privilégie les transitions importantes
-        # alpha = 0 → échantillonnage uniforme (comme DQN classique)
-        # alpha = 1 → totalement basé sur la priorité
+        # alpha = 0 échantillonnage uniforme (comme DQN classique)
+        # alpha = 1 totalement basé sur la priorité
         self.alpha = alpha
 
         # beta : corrige le biais introduit par l'échantillonnage non uniforme
@@ -30,7 +30,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         # Index réel de la transition ajoutée (gestion du buffer circulaire)
         idx = (self.pos - 1) % self.buffer_size
 
-        # Nouvelle transition → priorité maximale pour être vue au moins une fois
+        # Nouvelle transition priorité maximale pour être vue au moins une fois
         max_prio = self.priorities.max() if self.pos > 0 else 1.0
         if max_prio == 0:
             max_prio = 1.0
@@ -44,7 +44,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         else:
             prios = self.priorities[:self.pos]
 
-        # Cas initial : toutes les priorités sont nulles → fallback uniforme
+        # Cas initial : toutes les priorités sont nulles fallback uniforme
         if len(prios) == 0 or prios.sum() == 0:
             probs = np.ones_like(prios) / len(prios)
         else:
@@ -56,7 +56,7 @@ class PrioritizedReplayBuffer(ReplayBuffer):
             else:
                 probs /= probs_sum
 
-        # Échantillonnage selon les probabilités
+        # echantillonnage selon les probabilités
         indices = np.random.choice(len(probs), batch_size, p=probs)
 
         samples = self._get_samples(indices, env)
@@ -73,6 +73,5 @@ class PrioritizedReplayBuffer(ReplayBuffer):
 
     def update_priorities(self, indices, td_errors):
         # Mise à jour des priorités selon les TD errors
-        for idx, error in zip(indices, td_errors):
-            self.priorities[idx] = abs(error) + self.eps
+        self.priorities[indices] = np.abs(td_errors) + self.eps
 
