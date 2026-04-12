@@ -32,9 +32,7 @@ class IceHockeyShapingWrapper(gym.Wrapper):
             distances = [np.sqrt((p.x - puck.x)**2 + (p.y - puck.y)**2) for p in my_players]
             current_min_dist = min(distances)
             
-            # ---------------------------------------------------------
-            # NIVEAU 1 : S'APPROCHER DE LA RONDELLE
-            # ---------------------------------------------------------
+            # 1. S'APPROCHER DE LA RONDELLE
             if self.last_min_dist is not None:
                 if current_min_dist < self.last_min_dist:
                     shaping_step_reward += 0.01  
@@ -42,9 +40,7 @@ class IceHockeyShapingWrapper(gym.Wrapper):
                     shaping_step_reward -= 0.01 
             self.last_min_dist = current_min_dist
             
-            # ---------------------------------------------------------
-            # NIVEAU 2 : PROGRESSION OFFENSIVE (Possession + vers le bas)
-            # ---------------------------------------------------------
+            # 2. PROGRESSION OFFENSIVE (Possession + vers le bas)
             POSSESSION_THRESHOLD = 10.0 # Pixels
             
             if current_min_dist < POSSESSION_THRESHOLD:
@@ -62,11 +58,11 @@ class IceHockeyShapingWrapper(gym.Wrapper):
 
                     elif current_puck_target_dist > self.last_puck_target_dist:
                         # L'agent remonte vers son propre camp
-                        shaping_step_reward -= 0.01
+                        shaping_step_reward -= 0
                         
                 self.last_puck_target_dist = current_puck_target_dist
             else:
-                # S'il perd la rondelle, on réinitialise
+                # perd la rondelle, on réinitialise
                 self.last_puck_target_dist = None
 
         custom_reward += shaping_step_reward
