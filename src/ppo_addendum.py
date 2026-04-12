@@ -80,9 +80,6 @@ class PartialRolloutBuffer(RolloutBuffer):
                 seg_end = starts[seg_i + 1] if seg_i + 1 < len(starts) else self.buffer_size
                 segment_is_complete = seg_end < self.buffer_size
 
-                ####################################################################################
-                ### Papers rules HERE ! ############################################################
-                ####################################################################################
                 if segment_is_complete:
                     self.valid_mask[seg_start:seg_end, env_idx] = True
                 else:
