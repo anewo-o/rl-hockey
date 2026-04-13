@@ -1,6 +1,15 @@
+# Environnement & Atari
+gymnasium[atari]
 ale-py
 AutoROM
-gymnasium
-stable-baselines3[extra]
-PyYAML
 ocatari
+shimmy
+
+# Apprentissage par Renforcement
+stable-baselines3[extra]
+torch
+numpy
+
+# Utilitaires
+PyYAML
+tensorboard
