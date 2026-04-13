@@ -6,16 +6,26 @@ A Reinforcement Learning (RL) approach...
 - Incompatibility between OpenAI baselines (Python 3.7) and the Gymnasium (Python 3.9+)
 because of tensor-flow 1.14 support only (else pip install -e from baselines repo)
 
-## Dockerize
-- Freeze minimal environment with `conda env export --from-history | grep -v "^prefix:" > env.yml`
-- Manually add pip package `AutoROM` to dependencies :
-    ```yml
-    dependencies:
-        - pip
-        - pip:
-            - AutoROM
-    ```
-- Execute `AutoROM --accept-license --install-dir $CONDA_PREFIX/lib/python3.13/site-packages/ale_py/roms`
+## Installation
+
+1. **Create a virtual environment (recommended):**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Linux/Mac
+   .\venv\Scripts\activate   # On Windows
+   ```
+2. **Install dependencies:**  
+All necessary libraries (Gymnasium, Stable-Baselines3, PyTorch, etc.) are listed in the requirements.txt file.
+
+```bash
+pip install -r requirements.txt
+```
+3. **Install Atari ROMs:**  
+For the Ice Hockey environment, ROMs must be legally installed via AutoROM:
+
+```bash
+AutoROM --accept-license
+```
 
 ## TensorBoard
 
@@ -72,4 +82,3 @@ The `evaluate.py` script allows you to test trained models. It supports both vis
     ```bash
     python scripts/evaluate.py --model ppo_best_model_run1 --algo partial-ppo --n-matches 50
     ```
-    
